@@ -29,6 +29,63 @@ curr_card=1
 curr_playfield=0
 curr_player=1
 
+nstash=6
+
+--job stashes
+job_banker=1
+job_librar=2
+job_wizard=3
+job_priest=4
+job_witch =5
+job_psychi=6
+job_mortic=7
+
+function init_jobs()
+	local banker={
+ 	jobspr=1,
+ 	top_card={
+  	card=create_card(28,{{constcoin,3}}),
+  	price=5,
+  	inf=true},
+ 	med_card={
+  	card=create_card(27,{{constcoin,2}}),
+  	price=2,
+  	inf=true},
+ 	low_card={
+  	card=create_card(26,{{constcoin,1}}),
+  	price=0,
+  	inf=false}
+	}
+	
+	local librarian={
+	 jobspr=1,
+ 	top_card={
+  	card=create_card(44,{{constdraw,3}}),
+  	price=6,
+  	inf=false},
+ 	med_card={
+  	card=create_card(43,{{constdraw,2}}),
+  	price=4,
+  	inf=false},
+ 	low_card={
+  	card=create_card(42,{{constdraw,1}}),
+  	price=2,
+  	inf=false}
+	}
+	
+	jobs={
+	 banker,
+	 librarian}
+	
+end
+
+
+
+--quest stashes
+quest_drag=100
+quest_meep=101
+quest_graa=102
+
 --card effects constants
 constcoin=0
 constdraw=1
@@ -36,6 +93,9 @@ constmeep=2
 constnill=99
 
 --screen positions
+xplayfield={5,5,22,39,74,106}
+yplayfield={63,45,45,45,45,45}
+
 stash={
  x=50,
  y=50
@@ -53,7 +113,9 @@ actp={
  my=120
 }
 
---
+--********************
+--   managing cards
+--********************
 function create_card(sprite,effects)
  c={}
  c.sprite=sprite
@@ -61,23 +123,45 @@ function create_card(sprite,effects)
  return c
 end
 
-function create_stash()
+function create_stash(token,size)
  local stash={}
- add(stash,{
+ 
+ if token==job_banker then
+  add(stash,jobs[job_banker].med_card)
+  add(playfield_stashes,stash)
+  stash={}
+  add(stash,jobs[job_banker].top_card)
+ elseif token>job_banker then
+  add(stash,jobs[token].top_card)
+  
+  for i=1,size-2 do
+   if(rnd(10)<8) then
+    add(stash,jobs[token].low_card)
+   else
+    add(stash,jobs[token].med_card)
+   end
+  end
+  
+  add(stash,jobs[token].low_card)
+  
+ end
+ --[[add(stash,{
   card=create_card(50,{{constnill,0}}),
-  price=0})
+  price=0,
+  inf=true})
  add(stash,{
   card=create_card(49,{{constnill,0}}),
   price=0})
  add(stash,{
   card=create_card(48,{{constnill,0}}),
-  price=0})
+  price=0})]]
  
  add(playfield_stashes,stash)
 end
 
---
-
+--**********************
+--   managing effects
+--**********************
 function draw_cards(n)
  if n==0 then return end
  
@@ -116,20 +200,23 @@ function buy_card()
  end
   
  --if enough coins buy cards
- --otherwise deny
- 
  local last_card=playfield_stashes[curr_playfield][#playfield_stashes[curr_playfield]]
  
  if coins>=last_card.price then
   add(cards_disc.price)
-  del(playfield_stashes[curr_playfield],last_card)
+  if not last_card.inf then
+   del(playfield_stashes[curr_playfield],last_card)
+  end
   coins-=last_card.price
+ --otherwise deny
  else
   sfx(0)
  end
 end
 
---
+--***************
+--   btn press
+--***************
 function hand_selected()
  if btnp(0) then 
   curr_card=max(curr_card-1,1)
@@ -146,13 +233,15 @@ function playfield_selected()
  if btnp(0) then
   curr_playfield=max(curr_playfield-1,1)
  elseif btnp(1) then
-  curr_playfield=min(curr_playfield+1,5)
+  curr_playfield=min(curr_playfield+1,nstash)
  elseif btnp(4) then
   buy_card()
  end
 end
 
---
+--***********************
+--*  drawing playfield  *
+--***********************
 function draw_playerinfo()
  spr(2,actp.cx,actp.cy-1)
  print("="..coins,
@@ -193,26 +282,25 @@ function draw_meeples()
 end
 
 function draw_playfield()
- local xplayfield={5,22,39,74,106}
- local yplayfield=45
- 
  for j=1,#xplayfield do
   local maxcard=#playfield_stashes[j]
  	for i=1,maxcard do
   	 spr(90,
   	  xplayfield[j],
-  	  yplayfield+2*i,2,2)
+  	  yplayfield[j]+2*i,2,2)
   	 spr(playfield_stashes[j][i].card.sprite,
   	  xplayfield[j]+2,
-  	  yplayfield+2*i+4)
+  	  yplayfield[j]+2*i+4)
   	 if i==maxcard then
   	 	print(
   	  	playfield_stashes[j][i].price,
   	  	xplayfield[j]+10,
-  	  	yplayfield+2*i+2,
+  	  	yplayfield[j]+2*i+2,
   	  	10)
   	  if j==curr_playfield then
- 	    spr(40,xplayfield[j]+4,yplayfield+2*i+10)
+ 	    spr(40,
+ 	     xplayfield[j]+4,
+ 	     yplayfield[j]+2*i+10)
  	   end
   	end
  	end
@@ -221,13 +309,15 @@ function draw_playfield()
  	if maxcard==0 and j==curr_playfield then
   	spr(56,
   	 xplayfield[j]+5,
-  	 yplayfield+10)
+  	 yplayfield[j]+10)
   end
   
  end
 end
 
---
+--********************
+--*  loop functions  *
+--********************
 function _update()
  --turn start
  if turn_start then
@@ -270,6 +360,9 @@ end
 
 function _init()
  cls()
+ 
+ init_jobs()
+ 
  add(p1.deck,create_card(10,{{constmeep,1}}))
  add(p1.deck,create_card(26,{{constcoin,1}}))
  add(p1.deck,create_card(42,{{constdraw,1}}))
@@ -279,11 +372,11 @@ function _init()
  add(p1.deck,create_card(30,{{constnill,0}}))
  add(p1.deck,create_card(14,{{constnill,0}}))
  
- create_stash()
- create_stash()
- create_stash()
- create_stash()
- create_stash()
+ create_stash(job_banker,0)
+ create_stash(job_librar,5)
+ create_stash(job_librar,6)
+ create_stash(job_librar,7)
+ create_stash(job_librar,5)
 end
 
 __gfx__
