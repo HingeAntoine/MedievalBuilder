@@ -18,27 +18,43 @@ p1={
 turn_start=true
 zone_selected=1
 
-meep_center=30
 coins=0
 
 cards_hand={}
-cards_disc={}
+cards_played={}
 playfield_stashes={}
 
 curr_card=1
 curr_playfield=0
 curr_player=1
 
+nplayer=4
+meep_center=30
+
 nstash=6
 
---job stashes
+--********************
+--*  job and quests  *
+--********************
+
+--job and quest constants
 job_banker=1
 job_librar=2
 job_wizard=3
 job_priest=4
-job_witch =5
-job_psychi=6
-job_mortic=7
+quest_drag=5
+quest_meep=6
+quest_grai=7
+quest_king=8
+job_witch =9
+job_psychi=10
+job_mortic=111
+
+--card effects constants
+constcoin=0
+constdraw=1
+constmeep=2
+constnill=99
 
 function init_jobs()
 	local banker={
@@ -105,49 +121,87 @@ function init_jobs()
   	inf=false}
 	}
 	
+	local dragon={
+	 questspr={61,62},
+	 text="slay the beast!",
+ 	top_card={
+  	card=create_card(60,{{constnill,3}}),
+  	price=6,
+  	inf=false},
+ 	med_card={
+  	card=create_card(59,{{constnill,2}}),
+  	price=4,
+  	inf=false},
+ 	low_card={
+  	card=create_card(58,{{constnill,1}}),
+  	price=2,
+  	inf=false}
+	}
+ 
+ local soldiers={
+	 questspr={},
+	 text="recruit the biggest army!",
+ 	top_card={
+  	card=create_card(12,{{constmeep,3}}),
+  	price=6,
+  	inf=false},
+ 	med_card={
+  	card=create_card(11,{{constmeep,2}}),
+  	price=4,
+  	inf=false},
+ 	low_card={
+  	card=create_card(10,{{constmeep,1}}),
+  	price=2,
+  	inf=false}
+	}
+ 
+ local grail={
+	 questspr={},
+	 text="five grails in one turn!",
+ 	top_card={
+  	card=create_card(50,{{constmeep,3}}),
+  	price=6,
+  	inf=false},
+ 	med_card={
+  	card=create_card(49,{{constmeep,2}}),
+  	price=4,
+  	inf=false},
+ 	low_card={
+  	card=create_card(48,{{constmeep,1}}),
+  	price=2,
+  	inf=false}
+	}
+	
+	local king={
+	 questspr={},
+	 text="buy the crown!",
+ 	top_card={
+  	card=create_card(14,{{constnil,1}}),
+  	price=6,
+  	inf=false},
+ 	med_card={
+  	card=create_card(0,{{constnil,0}}),
+  	price=4,
+  	inf=false},
+ 	low_card={
+  	card=create_card(0,{{constnil,0}}),
+  	price=2,
+  	inf=false}
+	}
+	
 	jobs={
 	 banker,
 	 librarian,
 	 wizard,
-	 priest}
-	
+	 priest,
+	 dragon,
+	 soldiers,
+	 grail,
+	 king}
 end
 
-
---quest stashes
-quest_drag=100
-quest_meep=101
-quest_graa=102
-
---card effects constants
-constcoin=0
-constdraw=1
-constmeep=2
-constnill=99
-
---screen positions
-xplayfield={5,5,22,39,74,106}
-yplayfield={63,45,45,45,45,45}
-
-stash={
- x=50,
- y=50
-}
-
-hand={
- x=0,
- y=101
-}
-
-actp={
- cx=20,
- cy=120,
- mx=40,
- my=120
-}
-
 --********************
---   managing cards
+--*  managing cards  *
 --********************
 function create_card(sprite,effects)
  c={}
@@ -178,48 +232,62 @@ function create_stash(token,size)
   add(stash,jobs[token].low_card)
   
  end
- --[[add(stash,{
-  card=create_card(50,{{constnill,0}}),
-  price=0,
-  inf=true})
- add(stash,{
-  card=create_card(49,{{constnill,0}}),
-  price=0})
- add(stash,{
-  card=create_card(48,{{constnill,0}}),
-  price=0})]]
  
  add(playfield_stashes,stash)
 end
 
 --**********************
---   managing effects
+--*  managing effects  *
 --**********************
 function draw_cards(n)
  if n==0 then return end
  
  for i=1,n do
+  --verify deck not empty
+  if #p1.deck==0 then
+   shuffle_discard()
+  end
+  --draw the first card
   local card=p1.deck[1]
   add(cards_hand,card)
   del(p1.deck,card)
  end 
 end
 
+function shuffle_discard()
+ p1.deck=shuffle(p1.discard)
+ --p1.discard={}
+end
+
+function shuffle(tab)
+ local tab_buff={}
+ for i=1,#tab do
+  local rindex =flr(rnd(#tab)+1)
+  local element=tab[rindex]
+  add(tab_buff,element)
+  del(tab,element)
+ end
+ return tab_buff
+end
+
 function play_card(c)
  foreach(c.effects,do_effect)
 
  del(cards_hand,c)
- add(cards_disc,c)
+ add(cards_played,c)
 end
 
 function do_effect(pair)
  local eff_type= pair[1]
  local eff_param=pair[2]
  
+ --add coins
  if     eff_type==constcoin then
   coins += eff_param
+ --draw cards
  elseif eff_type==constdraw then
   draw_cards(eff_param)
+ --gain meeples/soldiers
  elseif eff_type==constmeep then
   p1.meep+=min(eff_param,meep_center)
   meep_center=max(meep_center-eff_param,0)
@@ -229,14 +297,15 @@ end
 function buy_card()
  --getting last card of a stash
  if #playfield_stashes[curr_playfield]==0 then 
-  return 
+  return
  end
   
  --if enough coins buy cards
- local last_card=playfield_stashes[curr_playfield][#playfield_stashes[curr_playfield]]
+ local current_stash=playfield_stashes[curr_playfield]
+ local last_card=current_stash[#current_stash]
  
  if coins>=last_card.price then
-  add(cards_disc.price)
+  add(p1.discard,last_card.card)
   if not last_card.inf then
    del(playfield_stashes[curr_playfield],last_card)
   end
@@ -264,10 +333,9 @@ function hand_selected()
   zone_selected=2
   curr_card=0
   curr_playfield=1
- elseif btnp(4) and #cards_hand > 0 then 
+ elseif (btnp(4) or btnp(5)) and #cards_hand > 0 then 
   play_card(cards_hand[curr_card])
-  curr_card=min(curr_card,#cards_hand)
- elseif btnp(5) then  
+  curr_card=min(curr_card,#cards_hand)  
  end
 end
 
@@ -280,7 +348,7 @@ function playfield_selected()
   zone_selected=1
   curr_card=min(1,#cards_hand)
   curr_playfield=0
- elseif btnp(4) then
+ elseif btnp(4) or btnp(5) then
   buy_card()
  end
 end
@@ -297,12 +365,47 @@ end
 function end_selected()
  if btnp(0) then 
   zone_selected=3
+ elseif btnp(4) or btnp(5) then
+  --discard cards in the played pile
+  for i=1,#cards_played do
+   add(p1.discard,cards_played[i])
+  end
+  cards_played={}
+  
+  --discard cards in hand
+  for i=1,#cards_hand do
+   add(p1.discard, cards_hand[i])
+  end
+  cards_hand={}
+  
+  --increment player
+  curr_player+=1
+  if curr_player > nplayer then
+   curr_player=1
+  end
+  
+  --new turn
+  turn_start=true
+  
  end
 end
 
 --***********************
 --*  drawing playfield  *
 --***********************
+
+--screen positions
+xplayfield={5,5,22,39,74,106}
+yplayfield={63,45,45,45,45,45}
+
+stash={x=50, y=50}
+
+hand={x=0, y=101}
+
+actp={cx=20, cy=120,
+      mx=40, my=120}
+
+--functions
 function draw_playerinfo()
  spr(2,actp.cx,actp.cy-1)
  print("="..coins,
@@ -340,7 +443,6 @@ function draw_hand()
   and zone_selected==1 then
   spr(56,hand.x+35, hand.y+6)
  end
- 
 end
 
 function draw_playfield()
@@ -439,7 +541,7 @@ function _init()
  
  init_jobs()
  
- add(p1.deck,create_card(28,{{constcoin,15}}))
+ add(p1.deck,create_card(28,{{constcoin,3}}))
  add(p1.deck,create_card(28,{{constcoin,3}}))
  add(p1.deck,create_card(44,{{constdraw,3}}))
  add(p1.deck,create_card(28,{{constcoin,3}}))
@@ -449,8 +551,8 @@ function _init()
  create_stash(job_banker,0)
  create_stash(job_librar,5)
  create_stash(job_wizard,6)
- create_stash(job_priest,7)
- create_stash(job_librar,5)
+ create_stash(quest_meep,7)
+ create_stash(quest_king,5)
 end
 
 __gfx__
