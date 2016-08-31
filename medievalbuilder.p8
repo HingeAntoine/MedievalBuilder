@@ -11,19 +11,15 @@ __lua__
 --*  game variables  *
 --********************
 players={}
---[[p1={
- meep=0,
- deck={},
- discard={}
-}]]
-
---[[p2, p3, p4...]]
 
 game_start=true
 nplayer=4
+nturns=1
 
 turn_start=true
 zone_selected=1
+
+show_discard=false
 
 cards_hand={}
 cards_played={}
@@ -210,7 +206,12 @@ end
 --*  managing cards  *
 --********************
 function create_players(num)
- 
+ while #players<num do
+  add(players,create_player())
+ end
+end
+
+function create_player()
  local p_temp={
  deck={},
  discard={}
@@ -229,9 +230,7 @@ function create_players(num)
  --if soldier quest: add meep
  --if ... add ... var
 
- while #players<num do
-  add(players,p_temp)
- end
+ return p_temp
 end
 
 function create_card(sprite,effects)
@@ -386,11 +385,13 @@ function playfield_selected()
 end
 
 function discard_selected()
- if btnp(0) then 
+ if btnp(0) and (not show_discard) then 
   zone_selected=1
   curr_card=#cards_hand
- elseif btnp(1) then 
+ elseif btnp(1) and (not show_discard) then 
   zone_selected=4
+ elseif btnp(4) or btnp(5) then
+  show_discard=not show_discard
  end
 end
 
@@ -414,6 +415,7 @@ function end_selected()
   curr_player+=1
   if curr_player > nplayer then
    curr_player=1
+   nturns+=1
   end
   
   --new turn
@@ -547,14 +549,38 @@ function draw_players()
   end
   pal()
   
-  --[[if i==curr_player then
-   spr(144,xcoord,24,4,1)
-  end]]
-  
   --portrait
   spr(portrait[i],
    xcoord+6,1,
    2,2)
+ end
+end
+
+function draw_discarded()
+ rectfill(19,19,99,99,15)
+ rect(18,18,100,100,7)
+ rect(19,19,99,99,8)
+ rect(20,20,98,98,7)
+ 
+ print("discarded",22,22,0)
+ 
+ --draw discarded cards
+ local cards_disc=players[curr_player].discard
+ for i=1,#cards_disc do
+   spr(8,
+    22+16*(i-1),30, 
+    2,2)
+   spr(cards_disc[i].sprite,
+    26+16*(i-1),34)
+ end
+ 
+ print("played",22,62,0)
+ for i=1,#cards_played do
+   spr(8,
+    22+16*(i-1),70, 
+    2,2)
+   spr(cards_played[i].sprite,
+    26+16*(i-1),74)
  end
 end
 
@@ -610,6 +636,10 @@ function _draw()
  draw_playerinfo()
  draw_discard()
  draw_end()
+ 
+ if show_discard then
+  draw_discarded()
+ end
 end
 
 function _init()
