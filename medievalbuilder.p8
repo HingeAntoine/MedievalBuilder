@@ -21,8 +21,9 @@ zone_selected=1
 
 show_discard=false
 
-player_win=false
+player_win=0
 start_screen=true
+draw_start_screen=true
 end_screen=false
 
 cards_hand={}
@@ -42,9 +43,10 @@ discarded_zone=1
 curr_disc={1,0}
 
 coins=0
+grails=0
 
 --quest_var
-meep_center=12
+meep_center=2
 dragon_hp=15
 
 
@@ -69,6 +71,9 @@ job_mortic=111
 constcoin=0
 constdraw=1
 constmeep=2
+constwin =3
+constslay=4
+constgrail=5
 constnill=99
 
 function init_jobs()
@@ -140,15 +145,15 @@ function init_jobs()
 	 questspr={61,62},
 	 text={"slay it"},
  	top_card={
-  	card=create_card(60,{{constnill,3}}),
+  	card=create_card(60,{{constslay,3}}),
   	price=7,
   	inf=false},
  	med_card={
-  	card=create_card(59,{{constnill,2}}),
+  	card=create_card(59,{{constslay,2}}),
   	price=5,
   	inf=false},
  	low_card={
-  	card=create_card(58,{{constnill,1}}),
+  	card=create_card(58,{{constslay,1}}),
   	price=3,
   	inf=false}
 	}
@@ -174,15 +179,15 @@ function init_jobs()
 	 questspr={},
 	 text={"four to"," win!"},
  	top_card={
-  	card=create_card(50,{{constmeep,3}}),
+  	card=create_card(50,{{constgrail,3}}),
   	price=7,
   	inf=false},
  	med_card={
-  	card=create_card(49,{{constmeep,2}}),
+  	card=create_card(49,{{constgrail,2}}),
   	price=5,
   	inf=false},
  	low_card={
-  	card=create_card(48,{{constmeep,1}}),
+  	card=create_card(48,{{constgrail,1}}),
   	price=3,
   	inf=false}
 	}
@@ -191,7 +196,7 @@ function init_jobs()
 	 questspr={},
 	 text={"become","king!"},
  	top_card={
-  	card=create_card(14,{{constnil,1}}),
+  	card=create_card(14,{{constwin,1}}),
   	price=7,
   	inf=false},
  	med_card={
@@ -228,6 +233,7 @@ end
 
 function create_player()
  local p_temp={
+ meep=0,
  deck={},
  discard={}
  }
@@ -370,7 +376,38 @@ function do_effect(pair)
  elseif eff_type==constmeep then
   players[curr_player].meep+=min(eff_param,meep_center)
   meep_center=max(meep_center-eff_param,0)
+  if meep_center == 0 then
+   local winner = 1
+   local max_meep= players[winner].meep
+   for p=2,nplayer do
+    if players[p].meep > max_meep then
+     winner = p
+     max_meep = players[p].meep
+    elseif players[p].meep == max_meep then
+     meep_center += 1
+     return
+    end
+   end
+   p_win(winner)
+  end
+ elseif eff_type==constwin then
+  p_win(curr_player)
+ elseif eff_type==constslay then
+  dragon_hp-=eff_param
+  if dragon_hp<=0 then
+   p_win(curr_player)
+  end
+ elseif eff_type==constgrail then
+  grails += eff_param
+  if grails >= 4 then
+   p_win(curr_player)
+  end
  end
+end
+
+function p_win(index_p)
+ player_win=index_p
+ assert(player_win<=4)
 end
 
 function buy_card()
@@ -713,19 +750,19 @@ function draw_players()
    2,2)
    
   --draw quest infos
-  for i=4,5 do
-   if jobs_drawn[i]==quest_drag then
-    spr(58,xcoord+(i-4)*12, 17)
-    print("3",xcoord+8+(i-4)*12, 19,7)
-   elseif jobs_drawn[i]==quest_meep then
-    spr(10,xcoord+(i-4)*12, 17)
-    print("3",xcoord+8+(i-4)*12, 19,7)
-   elseif jobs_drawn[i]==quest_grai then
-    spr(48,xcoord+(i-4)*12, 17)
-    print("3",xcoord+8+(i-4)*12, 19,7)
-   elseif jobs_drawn[i]==quest_king then
+  for q=4,5 do
+   if jobs_drawn[q]==quest_drag then
+    spr(58,xcoord+(q-4)*12, 17)
+    print("3",xcoord+8+(q-4)*12, 19,7)
+   elseif jobs_drawn[q]==quest_meep then
+    spr(10,xcoord+(q-4)*12, 17)
+    print(players[i].meep,xcoord+8+(q-4)*12, 19,7)
+   elseif jobs_drawn[q]==quest_grai then
+    spr(48,xcoord+(q-4)*12, 17)
+    print("3",xcoord+8+(q-4)*12, 19,7)
+   elseif jobs_drawn[q]==quest_king then
     if true then
-     spr(46,xcoord+1+(i-4)*14, 17)
+     spr(46,xcoord+1+(q-4)*14, 17)
     end
    end
   end
@@ -806,12 +843,14 @@ end
 --********************
 function _update()
 
+ --begining screen
  if start_screen then
   if btnp(4) then
    start_screen=false
   end
+  return
  end
-
+ 
  --game start
  if game_start then
   create_players(nplayer)
@@ -829,8 +868,10 @@ function _update()
   turn_start=false
  end
  
- if player_win then
-  game_end=true
+ --end condition
+ if player_win>0 then
+  end_screen=true
+  return
  end
  
  --button binding
@@ -849,16 +890,22 @@ function _draw()
  cls()
  
  --start screen
- if start_screen then
+ if draw_start_screen then
   spr(168,30,30,7,6)
   print("the royal cutthroat", 19, 80, 7)
   print("pico-deckbuilding game",14, 86, 7)
   print("press — for instructions",8, 96, 7)
   print("players: 1 2 3 4",26, 106, 7)
+  if not start_screen then
+   draw_start_screen=false
+  end
   return
  end
  
  if end_screen then
+  cls()
+  print("player "..player_win.." wins!")
+  print("number of turns: "..nturns)
   return
  end
  
