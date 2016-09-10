@@ -23,6 +23,7 @@ show_discard=false
 
 player_win=0
 start_screen=true
+cursor_pnum=1
 draw_start_screen=true
 end_screen=false
 
@@ -847,6 +848,17 @@ function _update()
  if start_screen then
   if btnp(4) then
    start_screen=false
+   nplayer=cursor_pnum
+  elseif btnp(0) then
+   cursor_pnum -=1
+   if cursor_pnum < 1 then
+    cursor_pnum = 1
+   end 
+  elseif btnp(1) then
+   cursor_pnum +=1
+   if cursor_pnum > 4 then
+    cursor_pnum = 4
+   end 
   end
   return
  end
@@ -896,6 +908,7 @@ function _draw()
   print("pico-deckbuilding game",14, 86, 7)
   print("press — for instructions",8, 96, 7)
   print("players: 1 2 3 4",26, 106, 7)
+  spr(40,cursor_pnum*8+53, 111)
   if not start_screen then
    draw_start_screen=false
   end
